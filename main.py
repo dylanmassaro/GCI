@@ -166,8 +166,9 @@ class SourcesPage(Screen):
         super().__init__(**kwargs)
         layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
         layout.add_widget(Label(text='Helpful Sources & Links', font_size=30, bold=True))
-        layout.add_widget(Label(text='[List of helpful resources will go here]'))
+        layout.add_widget(Label(text='[List of helpful resources!]'))
         layout.add_widget(Button(text="CDC Diabetes Prevention Program",on_press=lambda x: webbrowser.open("https://www.cdc.gov/diabetes-prevention/index.html")))
+        layout.add_widget(Button(text="Open Mayo Clinic Diabetes Prevention", on_press=lambda x: webbrowser.open("https://www.mayoclinic.org/diseases-conditions/type-2-diabetes/in-depth/diabetes-prevention/art-20047639?")))
         layout.add_widget(Button(text='Back to Main Menu', on_press=lambda x: setattr(self.manager, 'current', 'menu')))
         self.add_widget(layout)
 
