@@ -13,11 +13,69 @@ from kivy.uix.spinner import Spinner
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
 from kivy.graphics import Color, Rectangle
- 
-USER_FILE = 'users.json'
 
+# =========================
+# Global Colors & Styles
+# =========================
+COLORS = {
+    'ivory':     (1.0, 1.0, 0.94, 1),
+    'teal':      (0.00, 0.42, 0.35, 1),
+    'salmon':    (0.98, 0.50, 0.44, 1),
+    'dark_blue': (0.18, 0.31, 0.38, 1),
+}
+
+FONTS = {
+    'title': 40,
+    'section': 26,
+    'body': 20,
+    'button': 22,
+}
+
+# Button & label style helpers (avoid background_color collisions by NOT baking it in)
+BUTTON_STYLE = {
+    'size_hint': (1, None),
+    'height': 60,
+    'font_size': FONTS['button'],
+    'background_normal': '',
+    'color': COLORS['ivory'],  # text color
+}
+
+LABEL_TITLE_STYLE = {
+    'font_size': FONTS['title'],
+    'color': COLORS['ivory'],
+}
+
+LABEL_SECTION_STYLE = {
+    'font_size': FONTS['section'],
+    'color': COLORS['ivory'],
+}
+
+LABEL_BODY_STYLE = {
+    'font_size': FONTS['body'],
+    'color': COLORS['ivory'],
+}
+
+TEXTINPUT_STYLE = {
+    'multiline': False,
+    'foreground_color': COLORS['ivory'],
+    'background_color': (1, 1, 1, 0.12),  # subtle light on dark
+    'cursor_color': COLORS['ivory'],
+}
+
+SPINNER_STYLE = {
+    'size_hint_y': None,
+    'height': 50,
+    'background_normal': '',
+    'background_color': COLORS['teal'],
+    'color': COLORS['ivory'],
+}
+
+USER_FILE = 'users.json'
 current_user = {'username': None}
 
+# =========================
+# Utilities
+# =========================
 def load_users():
     if os.path.exists(USER_FILE):
         with open(USER_FILE, 'r') as f:
@@ -46,133 +104,235 @@ def check_user_credentials(username, password):
     users = load_users()
     return username in users and users[username]['password'] == hash_password(password)
 
+def set_screen_bg(widget, color_key='dark_blue'):
+    with widget.canvas.before:
+        Color(*COLORS[color_key])
+        widget.bg_rect = Rectangle(size=widget.size, pos=widget.pos)
+    widget.bind(size=lambda *a: _update_bg(widget), pos=lambda *a: _update_bg(widget))
+
+def _update_bg(widget):
+    widget.bg_rect.size = widget.size
+    widget.bg_rect.pos = widget.pos
+
+# =========================
+# Screens
+# =========================
 class LoginScreen(Screen):
     def __init__(self, **kwargs):
-        
         super().__init__(**kwargs)
-        with self.canvas.before:
-            from kivy.graphics import Color, Rectangle
-            Color(0.5, 0.5, 0.5, 1) 
-            self.bg_rect = Rectangle(size=self.size, pos=self.pos)
-        self.bind(size=self._update_bg, pos=self._update_bg)
+        set_screen_bg(self, 'dark_blue')
 
-        self.layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
-        self.layout.add_widget(Label(text='The Diabetes Destroying App', font_size=36, bold=True))
-        self.username_input = TextInput(hint_text='Enter your username')
-        self.password_input = TextInput(hint_text='Enter your password', password=True)
-        self.message_label = Label(text='')
-        login_btn = Button(
-            text='Login',
-            font_size=30,
-            size_hint=(1, 0.2),
-            height=50,
-            background_normal='',
-            background_color=(0.2, 0.6, 0.86, 1),
-            border=(16, 16, 16, 16)
-        )
+        layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
+
+        layout.add_widget(Label(
+            text='The Diabetes Destroying App',
+            **LABEL_TITLE_STYLE
+        ))
+
+        # Username
+        user_box = BoxLayout(orientation='vertical', size_hint=(1, None), height=100, spacing=6)
+        user_box.add_widget(Label(text='Enter your username', **LABEL_BODY_STYLE))
+        self.username_input = TextInput(**TEXTINPUT_STYLE)
+        user_box.add_widget(self.username_input)
+        layout.add_widget(user_box)
+
+        # Password
+        pass_box = BoxLayout(orientation='vertical', size_hint=(1, None), height=100, spacing=6)
+        pass_box.add_widget(Label(text='Enter your password', **LABEL_BODY_STYLE))
+        self.password_input = TextInput(password=True, **TEXTINPUT_STYLE)
+        self.password_input.bind(on_text_validate=lambda x: self.login_user(None))
+        pass_box.add_widget(self.password_input)
+        layout.add_widget(pass_box)
+
+        # Login button
+        login_btn = Button(text='Login', **BUTTON_STYLE, background_color=COLORS['teal'])
         login_btn.bind(on_press=self.login_user)
-        self.layout.add_widget(self.username_input)
-        self.layout.add_widget(self.password_input)
-        self.layout.add_widget(login_btn)
-        self.layout.add_widget(Button(text='New? Create an account here!', size_hint=(1, 0.1), on_press=lambda x: setattr(self.manager, 'current', 'create_account')))
-        self.layout.add_widget(self.message_label)
-        self.add_widget(self.layout)
+        layout.add_widget(login_btn)
+
+        # Create account
+        layout.add_widget(Button(
+            text='New? Create an account here!',
+            **BUTTON_STYLE,
+            background_color=COLORS['salmon'],
+            on_press=lambda x: setattr(self.manager, 'current', 'create_account')
+        ))
+
+        # Message label
+        self.message_label = Label(text='', **LABEL_BODY_STYLE)
+        layout.add_widget(self.message_label)
+
+        self.add_widget(layout)
 
     def login_user(self, instance):
         username = self.username_input.text.strip()
         password = self.password_input.text.strip()
         if check_user_credentials(username, password):
             current_user['username'] = username
+            self.username_input.text = ""
+            self.password_input.text = ""
             self.manager.current = 'menu'
         else:
             self.message_label.text = 'Incorrect username or password.'
-    def _update_bg(self, *args):
-        self.bg_rect.size = self.size
-        self.bg_rect.pos = self.pos
+
 
 class CreateAccountPage(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        with self.canvas.before:
-            from kivy.graphics import Color, Rectangle
-            Color(0.5, 0.5, 0.5, 1) 
-            self.bg_rect = Rectangle(size=self.size, pos=self.pos)
-        self.bind(size=self._update_bg, pos=self._update_bg)
-        self.layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
-        self.layout.add_widget(Label(text='Create an Account', font_size=30, bold=True))
-        self.name_input = TextInput(hint_text='Enter your name')
-        self.email_input = TextInput(hint_text='Enter your email')
-        self.password_input = TextInput(hint_text='Enter a password', password=True)
-        self.message_label = Label(text='')
-        submit_btn = Button(text='Submit')
+        set_screen_bg(self, 'dark_blue')
+
+        layout = BoxLayout(orientation='vertical', padding=20, spacing=12)
+
+        layout.add_widget(Label(text='Create an Account', **LABEL_TITLE_STYLE))
+
+        self.name_input = TextInput(hint_text='Enter your username', **TEXTINPUT_STYLE)
+        self.email_input = TextInput(hint_text='Enter your email', **TEXTINPUT_STYLE)
+        self.password_input = TextInput(hint_text='Enter a password', password=True, **TEXTINPUT_STYLE)
+        self.password_input.bind(on_text_validate=lambda x: self.create_account(None))
+
+        self.message_label = Label(text='', **LABEL_BODY_STYLE)
+
+        submit_btn = Button(text='Submit', **BUTTON_STYLE, background_color=COLORS['teal'])
         submit_btn.bind(on_press=self.create_account)
-        self.layout.add_widget(self.name_input)
-        self.layout.add_widget(self.email_input)
-        self.layout.add_widget(self.password_input)
-        self.layout.add_widget(submit_btn)
-        self.layout.add_widget(Button(text='Back to Login', on_press=lambda x: setattr(self.manager, 'current', 'login')))
-        self.layout.add_widget(self.message_label)
-        self.add_widget(self.layout)
+
+        layout.add_widget(self.name_input)
+        layout.add_widget(self.email_input)
+        layout.add_widget(self.password_input)
+        layout.add_widget(submit_btn)
+
+        layout.add_widget(Button(
+            text='Back to Login',
+            **BUTTON_STYLE,
+            background_color=COLORS['salmon'],
+            on_press=lambda x: setattr(self.manager, 'current', 'login')
+        ))
+
+        layout.add_widget(self.message_label)
+        self.add_widget(layout)
 
     def create_account(self, instance):
         username = self.name_input.text.strip()
         password = self.password_input.text.strip()
-        if save_user_credentials(username, password):
+        if not username or not password:
+            self.message_label.text = "Please enter username and password."
+        elif save_user_credentials(username, password):
             self.message_label.text = 'Account created successfully!'
         else:
             self.message_label.text = 'Username already exists.'
-    
-    def _update_bg(self, *args):
-        self.bg_rect.size = self.size
-        self.bg_rect.pos = self.pos
+
 
 class MainMenu(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
+        set_screen_bg(self, 'dark_blue')
 
-        # Store the title label so we can update it later
-        self.title_label = Label(text='', font_size=30, bold=True)
-        self.layout.add_widget(self.title_label)
+        layout = BoxLayout(orientation='vertical', padding=20, spacing=12)
+
+        self.title_label = Label(text='', **LABEL_TITLE_STYLE)
+        layout.add_widget(self.title_label)
 
         buttons = [
-            ('Get a new risk factor', 'input'),
-            ('Look at my previous reports', 'reports'),
-            ('Helpful Sources & Links', 'sources'),
-            ('Settings', 'settings')
+            ('Get a new risk factor', 'input', COLORS['teal']),
+            ('Look at my previous reports', 'reports', COLORS['teal']),
+            ('Helpful Sources & Links', 'sources', COLORS['salmon']),
+            ('Settings', 'settings', COLORS['salmon'])
         ]
-        for text, screen in buttons:
-            self.layout.add_widget(Button(text=text, on_press=lambda x, scr=screen: setattr(self.manager, 'current', scr)))
+        for text, screen, bg in buttons:
+            btn = Button(text=text, **BUTTON_STYLE, background_color=bg)
+            btn.bind(on_press=lambda x, scr=screen: setattr(self.manager, 'current', scr))
+            layout.add_widget(btn)
 
-        self.layout.add_widget(Button(
+        layout.add_widget(Button(
             text='Log out',
-            font_size=25,
-            size_hint_y=None,
-            height=50,
-            background_normal='',
-            background_color=(0.9, 0.2, 0.2, 1),
-            border=(16, 16, 16, 16),
+            **BUTTON_STYLE,
+            background_color=COLORS['dark_blue'],
             on_press=lambda x: setattr(self.manager, 'current', 'login')
         ))
 
-        self.add_widget(self.layout)
+        self.add_widget(layout)
 
     def on_pre_enter(self):
-        # Set title when the screen is shown
-        self.title_label.text = f'Main Menu - {current_user["username"]}'
+        self.title_label.text = f'Main Menu - {current_user["username"] or ""}'
+
 
 class SourcesPage(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
-        layout.add_widget(Label(text='Helpful Sources & Links', font_size=30, bold=True))
-        layout.add_widget(Label(text='[List of helpful resources!]'))
-        layout.add_widget(Button(text="CDC Diabetes Prevention Program",on_press=lambda x: webbrowser.open("https://www.cdc.gov/diabetes-prevention/index.html")))
-        layout.add_widget(Button(text="Open Mayo Clinic Diabetes Prevention", on_press=lambda x: webbrowser.open("https://www.mayoclinic.org/diseases-conditions/type-2-diabetes/in-depth/diabetes-prevention/art-20047639?")))
-        layout.add_widget(Button(text='Back to Main Menu', on_press=lambda x: setattr(self.manager, 'current', 'menu')))
+        set_screen_bg(self, 'dark_blue')
+
+        layout = BoxLayout(orientation='vertical', padding=30, spacing=20)
+
+        layout.add_widget(Label(text='Helpful Sources & Links', **LABEL_TITLE_STYLE))
+
+        layout.add_widget(Button(
+            **BUTTON_STYLE,
+            text="CDC Diabetes Prevention Program",
+            background_color=COLORS['teal'],
+            on_press=lambda x: webbrowser.open("https://www.cdc.gov/diabetes-prevention/index.html")
+        ))
+
+        layout.add_widget(Button(
+            **BUTTON_STYLE,
+            text="Open Mayo Clinic Diabetes Prevention",
+            background_color=COLORS['salmon'],
+            on_press=lambda x: webbrowser.open("https://www.mayoclinic.org/diseases-conditions/type-2-diabetes/in-depth/diabetes-prevention/art-20047639?")
+        ))
+
+        layout.add_widget(Button(
+            **BUTTON_STYLE,
+            text='Back to Main Menu',
+            background_color=COLORS['dark_blue'],
+            on_press=lambda x: setattr(self.manager, 'current', 'menu')
+        ))
+
         self.add_widget(layout)
 
+
 class SettingsPage(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        set_screen_bg(self, 'dark_blue')
+
+        layout = BoxLayout(orientation='vertical', padding=20, spacing=16)
+        layout.add_widget(Label(text='Settings', **LABEL_TITLE_STYLE))
+
+      
+        layout.add_widget(Label(text='Change Your Password', **LABEL_SECTION_STYLE))
+        self.new_password_input = TextInput(hint_text='Enter new password', password=True, **TEXTINPUT_STYLE)
+        change_pass_btn = Button(text='Change Password', **BUTTON_STYLE, background_color=COLORS['teal'])
+        change_pass_btn.bind(on_press=self.change_password)
+        layout.add_widget(self.new_password_input)
+        layout.add_widget(change_pass_btn)
+
+   
+        layout.add_widget(Label(text='Update Email', **LABEL_SECTION_STYLE))
+        self.new_email_input = TextInput(hint_text='Enter new email', **TEXTINPUT_STYLE)
+        update_email_btn = Button(text='Update Email', **BUTTON_STYLE, background_color=COLORS['teal'])
+        update_email_btn.bind(on_press=self.update_email)
+        layout.add_widget(self.new_email_input)
+        layout.add_widget(update_email_btn)
+
+       
+        delete_account_btn = Button(text='Delete My Account', **BUTTON_STYLE, background_color=COLORS['salmon'])
+        delete_account_btn.bind(on_press=self.delete_account)
+        layout.add_widget(delete_account_btn)
+
+
+        clear_btn = Button(text='Clear My Reports', **BUTTON_STYLE, background_color=COLORS['salmon'])
+        clear_btn.bind(on_press=self.clear_reports)
+        layout.add_widget(clear_btn)
+
+        self.confirmation_label = Label(text='', **LABEL_BODY_STYLE)
+        layout.add_widget(self.confirmation_label)
+
+        layout.add_widget(Button(
+            text='Back to Main Menu',
+            **BUTTON_STYLE,
+            background_color=COLORS['dark_blue'],
+            on_press=lambda x: setattr(self.manager, 'current', 'menu')
+        ))
+
+        self.add_widget(layout)
+
     def delete_account(self, instance):
         users = load_users()
         username = current_user['username']
@@ -182,38 +342,6 @@ class SettingsPage(Screen):
             current_user['username'] = None
             self.confirmation_label.text = 'Account deleted.'
             self.manager.current = 'login'
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
-        layout.add_widget(Label(text='Settings', font_size=30, bold=True))
-
-        clear_btn = Button(text='Clear My Reports')
-        clear_btn.bind(on_press=self.clear_reports)
-        layout.add_widget(clear_btn)
-
-        layout.add_widget(Label(text='Change Your Password'))
-        self.new_password_input = TextInput(hint_text='Enter new password', password=True)
-        change_pass_btn = Button(text='Change Password')
-        change_pass_btn.bind(on_press=self.change_password)
-        layout.add_widget(self.new_password_input)
-        layout.add_widget(change_pass_btn)
-
-        layout.add_widget(Label(text='Update Email'))
-        self.new_email_input = TextInput(hint_text='Enter new email')
-        update_email_btn = Button(text='Update Email')
-        update_email_btn.bind(on_press=self.update_email)
-        layout.add_widget(self.new_email_input)
-        layout.add_widget(update_email_btn)
-
-        delete_account_btn = Button(text='Delete My Account')
-        delete_account_btn.bind(on_press=self.delete_account)
-        layout.add_widget(delete_account_btn)
-
-        self.confirmation_label = Label(text='')
-        layout.add_widget(self.confirmation_label)
-
-        layout.add_widget(Button(text='Back to Main Menu', on_press=lambda x: setattr(self.manager, 'current', 'menu')))
-        self.add_widget(layout)
 
     def clear_reports(self, instance):
         users = load_users()
@@ -245,23 +373,23 @@ class SettingsPage(Screen):
                 self.new_email_input.text = ''
                 self.confirmation_label.text = 'Email updated successfully.'
 
-    def clear_reports(self, instance):
-        users = load_users()
-        username = current_user['username']
-        if username and username in users:
-            users[username]['reports'] = []
-            save_users(users)
 
 class ResultsPage(Screen):
     def __init__(self, result_text='', **kwargs):
         super().__init__(**kwargs)
-        self.layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
-        self.label = Label(text='Your Risk Result:', font_size=25)
-        self.result_label = Label(text=result_text, font_size=20)
-        self.layout.add_widget(self.label)
-        self.layout.add_widget(self.result_label)
-        self.layout.add_widget(Button(text='Back to Main Menu', on_press=lambda x: setattr(self.manager, 'current', 'menu')))
-        self.add_widget(self.layout)
+        set_screen_bg(self, 'dark_blue')
+
+        layout = BoxLayout(orientation='vertical', padding=20, spacing=12)
+        layout.add_widget(Label(text='Your Risk Result:', **LABEL_SECTION_STYLE))
+        self.result_label = Label(text=result_text, **LABEL_BODY_STYLE)
+        layout.add_widget(self.result_label)
+        layout.add_widget(Button(
+            text='Back to Main Menu',
+            **BUTTON_STYLE,
+            background_color=COLORS['salmon'],
+            on_press=lambda x: setattr(self.manager, 'current', 'menu')
+        ))
+        self.add_widget(layout)
 
     def update_result(self, result_text):
         self.result_label.text = result_text
@@ -271,21 +399,33 @@ class ResultsPage(Screen):
             users[username].setdefault('reports', []).append(result_text)
             save_users(users)
 
+
 class ReportsPage(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
-        layout.add_widget(Label(text='Previous Reports', font_size=30, bold=True))
+        set_screen_bg(self, 'dark_blue')
 
-        self.reports_label = Label(text='', halign='left', valign='top')
-        self.reports_label.bind(size=self.reports_label.setter('text_size'))
+        layout = BoxLayout(orientation='vertical', padding=20, spacing=12)
+        layout.add_widget(Label(text='Previous Reports', **LABEL_TITLE_STYLE))
+
+        self.reports_label = Label(text='', halign='left', valign='top', **LABEL_BODY_STYLE)
+        self.reports_label.bind(size=self._wrap_text)
 
         scroll = ScrollView()
         scroll.add_widget(self.reports_label)
 
         layout.add_widget(scroll)
-        layout.add_widget(Button(text='Back to Main Menu', on_press=lambda x: setattr(self.manager, 'current', 'menu')))
+        layout.add_widget(Button(
+            text='Back to Main Menu',
+            **BUTTON_STYLE,
+            background_color=COLORS['salmon'],
+            on_press=lambda x: setattr(self.manager, 'current', 'menu')
+        ))
+
         self.add_widget(layout)
+
+    def _wrap_text(self, *args):
+        self.reports_label.text_size = (self.reports_label.width, None)
 
     def on_pre_enter(self):
         users = load_users()
@@ -298,11 +438,14 @@ class ReportsPage(Screen):
 class InputPage(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        set_screen_bg(self, 'dark_blue')
+
         root_layout = BoxLayout(orientation='vertical')
         scroll_view = ScrollView()
         layout = GridLayout(cols=1, padding=20, spacing=10, size_hint_y=None)
         layout.bind(minimum_height=layout.setter('height'))
-        layout.add_widget(Label(text='Get a new risk factor', font_size=25, size_hint_y=None, height=50))
+
+        layout.add_widget(Label(text='Get a new risk factor', **LABEL_SECTION_STYLE))
 
         self.categories = {
             'Age': ['0-30: 0 points', '31-40: 2 points', '41-50: 4 points', '51-60: 6 points', '61+ years: 8 points'],
@@ -317,14 +460,25 @@ class InputPage(Screen):
 
         self.spinners = {}
         for category, values in self.categories.items():
-            sub_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=80)
-            sub_layout.add_widget(Label(text=category + ':', size_hint_y=None, height=30))
-            self.spinners[category] = Spinner(text='Select Option', values=values, size_hint_y=None, height=50)
-            sub_layout.add_widget(self.spinners[category])
+            sub_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=100, spacing=6)
+            sub_layout.add_widget(Label(text=f'{category}:', **LABEL_BODY_STYLE))
+            spn = Spinner(text='Select Option', values=values, **SPINNER_STYLE)
+            self.spinners[category] = spn
+            sub_layout.add_widget(spn)
             layout.add_widget(sub_layout)
 
-        layout.add_widget(Button(text='Submit', size_hint_y=None, height=50, on_press=self.submit_form))
-        layout.add_widget(Button(text='Back to Main Menu', size_hint_y=None, height=50, on_press=lambda x: setattr(self.manager, 'current', 'menu')))
+        layout.add_widget(Button(
+            text='Submit',
+            **BUTTON_STYLE,
+            background_color=COLORS['teal'],
+            on_press=self.submit_form
+        ))
+        layout.add_widget(Button(
+            text='Back to Main Menu',
+            **BUTTON_STYLE,
+            background_color=COLORS['salmon'],
+            on_press=lambda x: setattr(self.manager, 'current', 'menu')
+        ))
 
         scroll_view.add_widget(layout)
         root_layout.add_widget(scroll_view)
@@ -339,17 +493,20 @@ class InputPage(Screen):
     def calculate_fake_risk(self, selections):
         def score_from_text(value):
             if ':' in value:
-                return int(value.split(':')[1].strip().split()[0])
+                try:
+                    return int(value.split(':')[1].strip().split()[0])
+                except ValueError:
+                    return 0
             return 0
 
-        age_score = score_from_text(selections['Age'])
-        family_history_score = score_from_text(selections['Family History of Diabetes'])
-        bp_score = score_from_text(selections['Blood Pressure Levels'])
-        blood_sugar_score = score_from_text(selections['Blood Sugar Levels (Optional)'])
-        activity_score = score_from_text(selections['Physical Activity Levels'])
-        calorie_score = score_from_text(selections['Estimated Daily Calorie Intake'])
-        diet_score = score_from_text(selections['Diet Quality/Habits'])
-        stress_score = score_from_text(selections['Stress Levels'])
+        age_score = score_from_text(selections.get('Age', '0: 0'))
+        family_history_score = score_from_text(selections.get('Family History of Diabetes', '0: 0'))
+        bp_score = score_from_text(selections.get('Blood Pressure Levels', '0: 0'))
+        blood_sugar_score = score_from_text(selections.get('Blood Sugar Levels (Optional)', '0: 0'))
+        activity_score = score_from_text(selections.get('Physical Activity Levels', '0: 0'))
+        calorie_score = score_from_text(selections.get('Estimated Daily Calorie Intake', '0: 0'))
+        diet_score = score_from_text(selections.get('Diet Quality/Habits', '0: 0'))
+        stress_score = score_from_text(selections.get('Stress Levels', '0: 0'))
 
         risk1 = age_score * family_history_score
         risk2 = bp_score * blood_sugar_score
@@ -357,9 +514,9 @@ class InputPage(Screen):
         risk4 = calorie_score * (10 - activity_score)
 
         total = (
-        age_score + family_history_score + bp_score + blood_sugar_score +
-        activity_score + calorie_score + diet_score + stress_score +
-        0.5 * risk1 + 0.6 * risk2 + 0.4 * risk3 + 0.7 * risk4
+            age_score + family_history_score + bp_score + blood_sugar_score +
+            activity_score + calorie_score + diet_score + stress_score +
+            0.5 * risk1 + 0.6 * risk2 + 0.4 * risk3 + 0.7 * risk4
         )
 
         total = round(total, 2)
